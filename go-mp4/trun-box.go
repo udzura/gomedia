@@ -263,6 +263,11 @@ func makeTrunBox(track *mp4track, start, end int, moofSize uint64) []byte {
             sampleDuration = uint32(track.samplelist[i+1].dts - track.samplelist[i].dts)
         }
 
+        if sampleDuration > 0x0fffffff {
+            // detect underflow and fall back
+            sampleDuration = track.defaultDuration
+        }
+
         entry := trunEntry{
             sampleDuration:              sampleDuration,
             sampleSize:                  uint32(track.samplelist[i].size),

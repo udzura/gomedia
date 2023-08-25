@@ -162,19 +162,33 @@ func decodeTfhdBox(demuxer *MovDemuxer, size uint32) error {
     return err
 }
 
+func defectDefaultSampleDurationFromSamples(samples []sampleEntry) uint32 {
+    first := samples[0].dts
+    last := samples[len(samples)-1].dts
+
+    return uint32((last - first) / uint64(len(samples) - 1))
+}
+
 func makeTfhdBox(track *mp4track, offset uint64) []byte {
     tfFlags := TF_FLAG_SAMPLE_DESCRIPTION_INDEX_PRESENT
     tfFlags |= TF_FLAG_DEAAULT_BASE_IS_MOOF
     tfhd := NewTrackFragmentHeaderBox(track.trackId)
     tfhd.BaseDataOffset = offset
     if len(track.samplelist) > 1 {
-        tfhd.DefaultSampleDuration = uint32(track.samplelist[1].dts - track.samplelist[0].dts)
+        tfhd.DefaultSampleDuration = defectDefaultSampleDurationFromSamples(track.samplelist)
     } else if len(track.samplelist) == 1 && len(track.fragments) > 0 {
         tfhd.DefaultSampleDuration = uint32(track.samplelist[0].dts - track.fragments[len(track.fragments)-1].lastDts)
     } else {
         tfhd.DefaultSampleDuration = 0
         tfFlags |= TF_FLAG_DURATION_IS_EMPTY
     }
+
+    if tfhd.DefaultSampleDuration > 0x0fffffff {
+        // track.samplelist[1].dts - track.samplelist[0].dts is underflowed
+        tfhd.DefaultSampleDuration = 0
+        tfFlags |= TF_FLAG_DURATION_IS_EMPTY
+    }
+
     if len(track.samplelist) > 0 {
         tfFlags |= TF_FLAG_DEAAULT_SAMPLE_FLAGS_PRESENT
         tfFlags |= TF_FLAG_DEFAULT_SAMPLE_DURATION_PRESENT
